@@ -196,7 +196,12 @@ async def get_pending_assignments_for_user(user_id: str):
     # 2. ECPs
     ecps = await db.ecps.find({"status": "ACTIVE"}, NO_ID).to_list(500)
     for ecp in ecps:
-        if ecp.get("responsible_user") == user_id:
+        is_inst_active = (
+            ecp.get("current_stage") == "INSTALLATION"
+            and ecp.get("responsible_user") == user_id
+            and ecp.get("install_status") != "COMPLETED"
+        )
+        if is_inst_active:
             inst_eligible = await db.users.find({
                 "active": True,
                 "role": {"$in": ["INSTALLATION", "INSTALLATION_MEMBER"]},

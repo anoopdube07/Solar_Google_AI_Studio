@@ -138,8 +138,13 @@ export function getPendingAssignmentsForUser(userId: string): UserAssignmentItem
   for (const ecp of db.ecps.values()) {
     if (ecp.status !== "ACTIVE") continue;
 
-    // Installation assignment
-    if (ecp.responsible_user === userId) {
+    // Installation assignment: only when ECP is currently in INSTALLATION stage and installation is active/pending
+    const isInstallationActive =
+      ecp.current_stage === "INSTALLATION" &&
+      ecp.responsible_user === userId &&
+      ecp.install_status !== "COMPLETED";
+
+    if (isInstallationActive) {
       const eligibleUsers = Array.from(db.users.values())
         .filter((u) => u.active && (u.role === "INSTALLATION" || u.role === "INSTALLATION_MEMBER") && u.id !== userId)
         .map(cleanUser);
