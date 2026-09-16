@@ -160,6 +160,138 @@ async def create_user(body: UserCreate, user: dict = Depends(get_current_user)):
     return public_user(dict(doc))
 
 
+class ReassignmentItem(BaseModel):
+    id: Optional[str] = None
+    type: str
+    record_id: str
+    new_user_id: str
+
+
+class ReassignDeactivateBody(BaseModel):
+    reassignments: List[ReassignmentItem] = []
+
+
+async def get_pending_assignments_for_user(user_id: str):
+    assignments = []
+
+    # 1. Leads
+    leads = await db.leads.find({
+        "$or": [{"lead_owner_id": user_id}, {"assigned_user": user_id}],
+        "status": {"$nin": ["QUALIFIED", "LOST"]}
+    }, NO_ID).to_list(500)
+    for lead in leads:
+        lead_eligible = await db.users.find({"active": True, "role": "LEAD", "id": {"$ne": user_id}}, NO_ID).to_list(100)
+        assignments.append({
+            "id": f"lead_{lead['id']}",
+            "type": "LEAD",
+            "type_label": "Lead",
+            "record_id": lead["id"],
+            "record_title": lead.get("name", "Unnamed Lead"),
+            "current_stage": lead.get("status", ""),
+            "details": f"Lead #{lead['id']} · Status: {lead.get('status')} · Phone: {lead.get('phone') or '—'}",
+            "required_role": "LEAD",
+            "eligible_users": [public_user(u) for u in lead_eligible]
+        })
+
+    # 2. ECPs
+    ecps = await db.ecps.find({"status": "ACTIVE"}, NO_ID).to_list(500)
+    for ecp in ecps:
+        if ecp.get("responsible_user") == user_id:
+            inst_eligible = await db.users.find({
+                "active": True,
+                "role": {"$in": ["INSTALLATION", "INSTALLATION_MEMBER"]},
+                "id": {"$ne": user_id}
+            }, NO_ID).to_list(100)
+            assignments.append({
+                "id": f"ecp_inst_{ecp['id']}",
+                "type": "ECP_INSTALLATION",
+                "type_label": "ECP Installation",
+                "record_id": ecp["id"],
+                "record_title": ecp.get("project_name") or ecp.get("customer_name") or "ECP Project",
+                "current_stage": ecp.get("current_stage", ""),
+                "details": f"Project #{ecp['id']} · Stage: {ecp.get('current_stage')} · Install Status: {ecp.get('install_status') or 'ACTIVE'}",
+                "required_role": "INSTALLATION",
+                "eligible_users": [public_user(u) for u in inst_eligible]
+            })
+        if ecp.get("lead_owner_id") == user_id:
+            lead_eligible = await db.users.find({"active": True, "role": "LEAD", "id": {"$ne": user_id}}, NO_ID).to_list(100)
+            assignments.append({
+                "id": f"ecp_lead_{ecp['id']}",
+                "type": "ECP_LEAD_OWNER",
+                "type_label": "ECP Project Owner",
+                "record_id": ecp["id"],
+                "record_title": ecp.get("project_name") or ecp.get("customer_name") or "ECP Project",
+                "current_stage": ecp.get("current_stage", ""),
+                "details": f"Project #{ecp['id']} · Stage: {ecp.get('current_stage')} · Customer: {ecp.get('customer_name')}",
+                "required_role": "LEAD",
+                "eligible_users": [public_user(u) for u in lead_eligible]
+            })
+
+    # 3. Site visits
+    svs = await db.lead_site_visits.find({
+        "assigned_user": user_id,
+        "status": {"$in": ["REQUESTED", "ASSIGNED"]}
+    }, NO_ID).to_list(500)
+    for sv in svs:
+        sv_eligible = await db.users.find({
+            "active": True,
+            "role": {"$in": ["INSTALLATION", "INSTALLATION_MEMBER"]},
+            "id": {"$ne": user_id}
+        }, NO_ID).to_list(100)
+        assignments.append({
+            "id": f"sv_{sv['id']}",
+            "type": "SITE_VISIT",
+            "type_label": "Site Visit",
+            "record_id": sv["id"],
+            "record_title": sv.get("lead_name") or f"Site Visit #{sv['id']}",
+            "current_stage": sv.get("status", ""),
+            "details": f"Site Visit #{sv['id']} · Date: {sv.get('visit_date') or 'Not scheduled'} · Status: {sv.get('status')}",
+            "required_role": "INSTALLATION",
+            "eligible_users": [public_user(u) for u in sv_eligible]
+        })
+
+    # 4. Complaints
+    comps = await db.complaints.find({
+        "assigned_user": user_id,
+        "status": {"$nin": ["RESOLVED", "CLOSED"]}
+    }, NO_ID).to_list(500)
+    for c in comps:
+        team = c.get("assigned_team") or "COMPLAINT"
+        roles = ["INSTALLATION", "INSTALLATION_MEMBER"] if team == "INSTALLATION" else [team]
+        comp_eligible = await db.users.find({
+            "active": True,
+            "role": {"$in": roles},
+            "id": {"$ne": user_id}
+        }, NO_ID).to_list(100)
+        assignments.append({
+            "id": f"complaint_{c['id']}",
+            "type": "COMPLAINT",
+            "type_label": "Complaint",
+            "record_id": c["id"],
+            "record_title": f"{c.get('ticket_no') or c['id']}: {c.get('subject')}",
+            "current_stage": c.get("status", ""),
+            "details": f"Ticket: {c.get('ticket_no') or c['id']} · Team: {c.get('assigned_team')} · Priority: {c.get('priority')} · Status: {c.get('status')}",
+            "required_role": team,
+            "eligible_users": [public_user(u) for u in comp_eligible]
+        })
+
+    return assignments
+
+
+@api.get("/users/{user_id}/assignments")
+async def get_user_assignments(user_id: str, user: dict = Depends(get_current_user)):
+    require(user, "OWNER")
+    target = await db.users.find_one({"id": user_id}, NO_ID)
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    assignments = await get_pending_assignments_for_user(user_id)
+    return {
+        "user": public_user(target),
+        "count": len(assignments),
+        "assignments": assignments
+    }
+
+
 @api.patch("/users/{user_id}")
 async def update_user(user_id: str, body: UserUpdate, user: dict = Depends(get_current_user)):
     require(user, "OWNER")
@@ -175,7 +307,21 @@ async def update_user(user_id: str, body: UserUpdate, user: dict = Depends(get_c
         upd["role"] = body.role
         upd["team"] = body.role
     if body.active is not None:
-        upd["active"] = body.active
+        should_be_active = bool(body.active)
+        if not should_be_active and target.get("active", True):
+            if user_id == user["id"]:
+                raise HTTPException(status_code=400, detail="Cannot deactivate your own account")
+            pending = await get_pending_assignments_for_user(user_id)
+            if pending:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"User has {len(pending)} active assignment(s). Every active assignment must be reassigned before deactivation."
+                )
+            upd["active"] = False
+            await log_activity(user, "Deactivated User", "USER", user_id, target.get("name", ""))
+        elif should_be_active and not target.get("active", True):
+            upd["active"] = True
+            await log_activity(user, "Activated User", "USER", user_id, target.get("name", ""))
     if body.password:
         upd["password_hash"] = hash_password(body.password)
     if body.phone is not None:
@@ -185,6 +331,88 @@ async def update_user(user_id: str, body: UserUpdate, user: dict = Depends(get_c
     fresh = await db.users.find_one({"id": user_id}, NO_ID)
     fresh.pop("password_hash", None)
     return fresh
+
+
+@api.post("/users/{user_id}/reassign-and-deactivate")
+async def reassign_and_deactivate_user(user_id: str, body: ReassignDeactivateBody, user: dict = Depends(get_current_user)):
+    require(user, "OWNER")
+    target = await db.users.find_one({"id": user_id})
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user_id == user["id"]:
+        raise HTTPException(status_code=400, detail="Cannot deactivate your own account")
+
+    pending = await get_pending_assignments_for_user(user_id)
+    if not pending:
+        await db.users.update_one({"id": user_id}, {"$set": {"active": False}})
+        await log_activity(user, "Deactivated User", "USER", user_id, target.get("name", ""))
+        fresh = await db.users.find_one({"id": user_id}, NO_ID)
+        fresh.pop("password_hash", None)
+        return {"success": True, "user": fresh, "reassigned_count": 0}
+
+    # Validate all assignments
+    reassign_map = {r.id or f"{r.type.lower()}_{r.record_id}": r for r in body.reassignments}
+    for a in pending:
+        item = reassign_map.get(a["id"])
+        if not item or not item.new_user_id:
+            raise HTTPException(status_code=400, detail=f"Missing replacement user for {a['type_label']}: {a['record_title']}")
+        rep = await db.users.find_one({"id": item.new_user_id})
+        if not rep:
+            raise HTTPException(status_code=400, detail=f"Replacement user not found for {a['record_title']}")
+        if rep["id"] == user_id:
+            raise HTTPException(status_code=400, detail=f"Cannot reassign {a['record_title']} to target user")
+        if not rep.get("active", True):
+            raise HTTPException(status_code=400, detail=f"Replacement user {rep.get('name')} is inactive")
+
+        if a["type"] in ("LEAD", "ECP_LEAD_OWNER"):
+            if rep["role"] != "LEAD":
+                raise HTTPException(status_code=400, detail=f"Replacement user for {a['type_label']} must have role LEAD")
+        elif a["type"] in ("ECP_INSTALLATION", "SITE_VISIT"):
+            if rep["role"] not in wf.INSTALL_MEMBER_ROLES:
+                raise HTTPException(status_code=400, detail=f"Replacement user for {a['type_label']} must belong to Installation team")
+        elif a["type"] == "COMPLAINT":
+            req_role = a["required_role"]
+            allowed = wf.INSTALL_MEMBER_ROLES if req_role == "INSTALLATION" else {req_role}
+            if rep["role"] not in allowed:
+                raise HTTPException(status_code=400, detail=f"Replacement user for complaint must belong to team {req_role}")
+
+    # Execute reassignments
+    for a in pending:
+        item = reassign_map.get(a["id"])
+        rep = await db.users.find_one({"id": item.new_user_id})
+        if a["type"] == "LEAD":
+            await db.leads.update_one({"id": a["record_id"]}, {"$set": {
+                "lead_owner_id": rep["id"], "lead_owner_name": rep["name"],
+                "assigned_user": rep["id"], "updated_at": now_iso()
+            }})
+        elif a["type"] == "ECP_INSTALLATION":
+            await db.ecps.update_one({"id": a["record_id"]}, {"$set": {
+                "responsible_user": rep["id"], "updated_at": now_iso()
+            }})
+        elif a["type"] == "ECP_LEAD_OWNER":
+            await db.ecps.update_one({"id": a["record_id"]}, {"$set": {
+                "lead_owner_id": rep["id"], "updated_at": now_iso()
+            }})
+        elif a["type"] == "SITE_VISIT":
+            await db.lead_site_visits.update_one({"id": a["record_id"]}, {"$set": {
+                "assigned_user": rep["id"], "assigned_user_name": rep["name"],
+                "assigned_by": user["id"], "assigned_by_name": user["name"]
+            }})
+        elif a["type"] == "COMPLAINT":
+            await db.complaints.update_one({"id": a["record_id"]}, {"$set": {
+                "assigned_user": rep["id"], "assigned_user_name": rep["name"], "updated_at": now_iso()
+            }})
+
+    # Authoritative check
+    remaining = await get_pending_assignments_for_user(user_id)
+    if remaining:
+        raise HTTPException(status_code=500, detail="Reassignment incomplete. User cannot be deactivated.")
+
+    await db.users.update_one({"id": user_id}, {"$set": {"active": False}})
+    await log_activity(user, "Deactivated User", "USER", user_id, f"After reassigning {len(pending)} assignments")
+    fresh = await db.users.find_one({"id": user_id}, NO_ID)
+    fresh.pop("password_hash", None)
+    return {"success": True, "user": fresh, "reassigned_count": len(pending)}
 
 
 # ========================= SLA CONFIG (Owner only to edit) =========================

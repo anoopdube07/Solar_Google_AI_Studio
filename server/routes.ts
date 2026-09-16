@@ -97,9 +97,153 @@ apiRouter.get("/auth/me", requireAuth, (req, res) => {
 });
 
 // ------------------- USERS -------------------
+export interface UserAssignmentItem {
+  id: string;
+  type: "LEAD" | "ECP_INSTALLATION" | "ECP_LEAD_OWNER" | "SITE_VISIT" | "COMPLAINT";
+  type_label: string;
+  record_id: string;
+  record_title: string;
+  current_stage: string;
+  details: string;
+  required_role: string;
+  eligible_users: { id: string; name: string; username: string; role: string }[];
+}
+
+export function getPendingAssignmentsForUser(userId: string): UserAssignmentItem[] {
+  const assignments: UserAssignmentItem[] = [];
+
+  // 1. Leads: pending/active if status not in QUALIFIED, LOST
+  for (const lead of db.leads.values()) {
+    const isAssigned = lead.lead_owner_id === userId || lead.assigned_user === userId;
+    const isActive = lead.status !== "QUALIFIED" && lead.status !== "LOST";
+    if (isAssigned && isActive) {
+      const eligibleUsers = Array.from(db.users.values())
+        .filter((u) => u.active && u.role === "LEAD" && u.id !== userId)
+        .map(cleanUser);
+      assignments.push({
+        id: `lead_${lead.id}`,
+        type: "LEAD",
+        type_label: "Lead",
+        record_id: lead.id,
+        record_title: lead.name,
+        current_stage: lead.status,
+        details: `Lead #${lead.id} · Status: ${lead.status} · Phone: ${lead.phone || "—"}`,
+        required_role: "LEAD",
+        eligible_users: eligibleUsers,
+      });
+    }
+  }
+
+  // 2. ECPs: pending/active only if status is ACTIVE
+  for (const ecp of db.ecps.values()) {
+    if (ecp.status !== "ACTIVE") continue;
+
+    // Installation assignment
+    if (ecp.responsible_user === userId) {
+      const eligibleUsers = Array.from(db.users.values())
+        .filter((u) => u.active && (u.role === "INSTALLATION" || u.role === "INSTALLATION_MEMBER") && u.id !== userId)
+        .map(cleanUser);
+      assignments.push({
+        id: `ecp_inst_${ecp.id}`,
+        type: "ECP_INSTALLATION",
+        type_label: "ECP Installation",
+        record_id: ecp.id,
+        record_title: ecp.project_name || ecp.customer_name,
+        current_stage: ecp.current_stage,
+        details: `Project #${ecp.id} · Stage: ${STAGE_LABELS[ecp.current_stage] || ecp.current_stage} · Install Status: ${ecp.install_status || "ACTIVE"}`,
+        required_role: "INSTALLATION",
+        eligible_users: eligibleUsers,
+      });
+    }
+
+    // Lead owner assignment on active project
+    if (ecp.lead_owner_id === userId) {
+      const eligibleUsers = Array.from(db.users.values())
+        .filter((u) => u.active && u.role === "LEAD" && u.id !== userId)
+        .map(cleanUser);
+      assignments.push({
+        id: `ecp_lead_${ecp.id}`,
+        type: "ECP_LEAD_OWNER",
+        type_label: "ECP Project Owner",
+        record_id: ecp.id,
+        record_title: ecp.project_name || ecp.customer_name,
+        current_stage: ecp.current_stage,
+        details: `Project #${ecp.id} · Stage: ${STAGE_LABELS[ecp.current_stage] || ecp.current_stage} · Customer: ${ecp.customer_name}`,
+        required_role: "LEAD",
+        eligible_users: eligibleUsers,
+      });
+    }
+  }
+
+  // 3. Lead-stage Site Visits: pending if status in REQUESTED, ASSIGNED
+  for (const sv of db.site_visits.values()) {
+    const isAssigned = sv.assigned_user === userId;
+    const isActive = sv.status === "REQUESTED" || sv.status === "ASSIGNED";
+    if (isAssigned && isActive) {
+      const eligibleUsers = Array.from(db.users.values())
+        .filter((u) => u.active && (u.role === "INSTALLATION" || u.role === "INSTALLATION_MEMBER") && u.id !== userId)
+        .map(cleanUser);
+      assignments.push({
+        id: `sv_${sv.id}`,
+        type: "SITE_VISIT",
+        type_label: "Site Visit",
+        record_id: sv.id,
+        record_title: sv.lead_name || `Site Visit #${sv.id}`,
+        current_stage: sv.status,
+        details: `Site Visit #${sv.id} · Date: ${sv.visit_date || "Not scheduled"} · Status: ${sv.status}`,
+        required_role: "INSTALLATION",
+        eligible_users: eligibleUsers,
+      });
+    }
+  }
+
+  // 4. Complaints: pending if status not in RESOLVED, CLOSED
+  for (const c of db.complaints.values()) {
+    const isAssigned = c.assigned_user === userId;
+    const isActive = c.status !== "RESOLVED" && c.status !== "CLOSED";
+    if (isAssigned && isActive) {
+      const team = c.assigned_team || "COMPLAINT";
+      const targetRoles = team === "INSTALLATION" ? ["INSTALLATION", "INSTALLATION_MEMBER"] : [team];
+      const eligibleUsers = Array.from(db.users.values())
+        .filter((u) => u.active && targetRoles.includes(u.role) && u.id !== userId)
+        .map(cleanUser);
+      assignments.push({
+        id: `complaint_${c.id}`,
+        type: "COMPLAINT",
+        type_label: "Complaint",
+        record_id: c.id,
+        record_title: c.ticket_no ? `${c.ticket_no}: ${c.subject}` : c.subject,
+        current_stage: c.status,
+        details: `Ticket: ${c.ticket_no || c.id} · Team: ${c.assigned_team} · Priority: ${c.priority} · Status: ${c.status}`,
+        required_role: c.assigned_team,
+        eligible_users: eligibleUsers,
+      });
+    }
+  }
+
+  return assignments;
+}
+
 apiRouter.get("/users", requireAuth, (req, res) => {
-  const users = Array.from(db.users.values()).map(cleanUser);
-  res.json(users);
+  let users = Array.from(db.users.values());
+  const { status } = req.query;
+  if (status === "ACTIVE") {
+    users = users.filter((u) => u.active);
+  } else if (status === "INACTIVE") {
+    users = users.filter((u) => !u.active);
+  }
+  res.json(users.map(cleanUser));
+});
+
+apiRouter.get("/users/:id/assignments", requireAuth, requireRoles("OWNER"), (req, res) => {
+  const user = db.users.get(req.params.id);
+  if (!user) return res.status(404).json({ detail: "User not found" });
+  const assignments = getPendingAssignmentsForUser(user.id);
+  res.json({
+    user: cleanUser(user),
+    count: assignments.length,
+    assignments,
+  });
 });
 
 apiRouter.get("/users/team/:role", requireAuth, (req, res) => {
@@ -149,9 +293,204 @@ apiRouter.patch("/users/:id", requireAuth, requireRoles("OWNER"), (req, res) => 
     user.team = user.role;
   }
   if (phone !== undefined) user.phone = String(phone).trim();
-  if (active !== undefined) user.active = Boolean(active);
   if (password) user.password_hash = bcrypt.hashSync(password, 10);
+
+  if (active !== undefined) {
+    const shouldBeActive = Boolean(active);
+    if (!shouldBeActive && user.active) {
+      // Trying to deactivate: verify not current authenticated user
+      const currentUserId = (req as any).user?.id;
+      if (user.id === currentUserId) {
+        return res.status(400).json({ detail: "Cannot deactivate your own account" });
+      }
+
+      // Authoritative check: zero active assignments required
+      const pending = getPendingAssignmentsForUser(user.id);
+      if (pending.length > 0) {
+        return res.status(400).json({
+          detail: `User has ${pending.length} active assignment(s). Every active assignment must be reassigned before deactivation.`,
+          pending_count: pending.length,
+          assignments: pending,
+        });
+      }
+
+      user.active = false;
+      logActivity(`Deactivated user ${user.name} (${user.role})`, (req as any).user.name);
+    } else if (shouldBeActive && !user.active) {
+      user.active = true;
+      logActivity(`Activated user ${user.name} (${user.role})`, (req as any).user.name);
+    }
+  }
+
   res.json(cleanUser(user));
+});
+
+apiRouter.post("/users/:id/reassign-and-deactivate", requireAuth, requireRoles("OWNER"), (req, res) => {
+  const targetUser = db.users.get(req.params.id);
+  if (!targetUser) return res.status(404).json({ detail: "User not found" });
+
+  const currentUserId = (req as any).user?.id;
+  if (targetUser.id === currentUserId) {
+    return res.status(400).json({ detail: "Cannot deactivate your own account" });
+  }
+
+  // Authoritatively fetch all currently pending/active assignments
+  const pending = getPendingAssignmentsForUser(targetUser.id);
+  if (pending.length === 0) {
+    targetUser.active = false;
+    logActivity(`Deactivated user ${targetUser.name} (${targetUser.role})`, (req as any).user.name);
+    return res.json({ success: true, user: cleanUser(targetUser), reassigned_count: 0 });
+  }
+
+  const { reassignments } = req.body || {};
+  if (!Array.isArray(reassignments)) {
+    return res.status(400).json({ detail: "Reassignments array is required" });
+  }
+
+  // 1. Authoritative Validation: verify every pending assignment is explicitly provided with an eligible active replacement
+  for (const a of pending) {
+    const item = reassignments.find(
+      (r: any) => r.id === a.id || (r.type === a.type && r.record_id === a.record_id)
+    );
+    if (!item || !item.new_user_id) {
+      return res.status(400).json({
+        detail: `Missing replacement user for ${a.type_label}: ${a.record_title}`,
+      });
+    }
+
+    const replacement = db.users.get(item.new_user_id);
+    if (!replacement) {
+      return res.status(400).json({
+        detail: `Replacement user not found for ${a.record_title}`,
+      });
+    }
+    if (replacement.id === targetUser.id) {
+      return res.status(400).json({
+        detail: `Cannot reassign ${a.record_title} to the user being deactivated`,
+      });
+    }
+    if (!replacement.active) {
+      return res.status(400).json({
+        detail: `Replacement user ${replacement.name} is inactive`,
+      });
+    }
+
+    // Role eligibility check
+    if (a.type === "LEAD" || a.type === "ECP_LEAD_OWNER") {
+      if (replacement.role !== "LEAD") {
+        return res.status(400).json({
+          detail: `Replacement user for ${a.type_label} must have role LEAD (selected ${replacement.name} has ${replacement.role})`,
+        });
+      }
+    } else if (a.type === "ECP_INSTALLATION" || a.type === "SITE_VISIT") {
+      if (!["INSTALLATION", "INSTALLATION_MEMBER"].includes(replacement.role)) {
+        return res.status(400).json({
+          detail: `Replacement user for ${a.type_label} must belong to Installation team (selected ${replacement.name} has ${replacement.role})`,
+        });
+      }
+    } else if (a.type === "COMPLAINT") {
+      const allowedRoles =
+        a.required_role === "INSTALLATION"
+          ? ["INSTALLATION", "INSTALLATION_MEMBER"]
+          : [a.required_role];
+      if (!allowedRoles.includes(replacement.role)) {
+        return res.status(400).json({
+          detail: `Replacement user for complaint must belong to team ${a.required_role} (selected ${replacement.name} has ${replacement.role})`,
+        });
+      }
+    }
+  }
+
+  // 2. Authoritatively execute work-by-work reassignments
+  for (const a of pending) {
+    const item = reassignments.find(
+      (r: any) => r.id === a.id || (r.type === a.type && r.record_id === a.record_id)
+    );
+    const replacement = db.users.get(item.new_user_id)!;
+
+    if (a.type === "LEAD") {
+      const lead = db.leads.get(a.record_id);
+      if (lead) {
+        const prev = lead.lead_owner_name || "—";
+        lead.lead_owner_id = replacement.id;
+        lead.lead_owner_name = replacement.name;
+        lead.assigned_user = replacement.id;
+        lead.updated_at = new Date().toISOString();
+        logActivity(
+          `Lead Reassigned: ${lead.name} (${prev} → ${replacement.name})`,
+          (req as any).user.name,
+          lead.name
+        );
+      }
+    } else if (a.type === "ECP_INSTALLATION") {
+      const ecp = db.ecps.get(a.record_id);
+      if (ecp) {
+        ecp.responsible_user = replacement.id;
+        ecp.updated_at = new Date().toISOString();
+        logActivity(
+          `Installation Reassigned: ${ecp.project_name} to ${replacement.name}`,
+          (req as any).user.name,
+          undefined,
+          ecp.project_name
+        );
+      }
+    } else if (a.type === "ECP_LEAD_OWNER") {
+      const ecp = db.ecps.get(a.record_id);
+      if (ecp) {
+        ecp.lead_owner_id = replacement.id;
+        ecp.updated_at = new Date().toISOString();
+        logActivity(
+          `Project Ownership Reassigned: ${ecp.project_name} to ${replacement.name}`,
+          (req as any).user.name,
+          undefined,
+          ecp.project_name
+        );
+      }
+    } else if (a.type === "SITE_VISIT") {
+      const sv = db.site_visits.get(a.record_id);
+      if (sv) {
+        sv.assigned_user = replacement.id;
+        sv.assigned_user_name = replacement.name;
+        logActivity(
+          `Site Visit Reassigned: ${sv.lead_name} to ${replacement.name}`,
+          (req as any).user.name,
+          sv.lead_name
+        );
+      }
+    } else if (a.type === "COMPLAINT") {
+      const comp = db.complaints.get(a.record_id);
+      if (comp) {
+        comp.assigned_user = replacement.id;
+        comp.assigned_user_name = replacement.name;
+        comp.updated_at = new Date().toISOString();
+        logActivity(
+          `Complaint Reassigned: ${comp.ticket_no || comp.id} to ${replacement.name}`,
+          (req as any).user.name
+        );
+      }
+    }
+  }
+
+  // 3. Authoritative post-reassignment check: verify ZERO active assignments remain
+  const remaining = getPendingAssignmentsForUser(targetUser.id);
+  if (remaining.length > 0) {
+    return res.status(500).json({
+      detail: `Reassignment incomplete. ${remaining.length} active assignment(s) still remain with user. Inactivation aborted.`,
+    });
+  }
+
+  // 4. Safe deactivation: user record remains in database, active set to false
+  targetUser.active = false;
+  logActivity(
+    `Deactivated user ${targetUser.name} (${targetUser.role}) after reassigning ${pending.length} operational assignment(s)`,
+    (req as any).user.name
+  );
+
+  res.json({
+    success: true,
+    user: cleanUser(targetUser),
+    reassigned_count: pending.length,
+  });
 });
 
 // ------------------- SLA CONFIG -------------------
