@@ -1,0 +1,39 @@
+{
+  "summary": "Verified the Net Metering close-task handoff bug fix end-to-end. Backend: created /app/backend/tests/test_net_metering_assign.py with 8 tests covering the 9 required backend checks; 7 passed, 1 skipped (pre-existing NM ECP whose 'Request Net Metering' was already completed on the second run — the primary pre-prereq 400 assertion was validated on the first run against ECP ba3112c3). All authoritative checks pass: REGISTRATION gets 403 on Close NM, INSTALLATION_MANAGER assign in NM before prereq -> 400, assign after prereq -> 200 (responsible_user/name set to instmem), non-assigned INSTALLATION_MEMBER -> 403 on Close NM, assigned INSTALLATION_MEMBER -> 200 and stage auto-advances NM -> REGISTRATION_2 with correct history entry, INSTALLATION-stage regression assignment still works. Frontend: verified via Playwright — INSTALLATION_MANAGER sees 'Assigned · Manish Install-Member' via data-testid=close-nm-assigned; the assigned INSTALLATION_MEMBER (instmem) sees data-testid=complete-task-<id> and clicking it advanced ECP c9589b18 to REGISTRATION_2 (confirmed via Workflow History showing 'Net Metering → Registration 2 · Manish Install-Member'). REGISTRATION filter (Close NM hidden from Stage Work list) is verified by code review (ECPDetail.jsx line 94-96 filters out 'Close Net Metering' for isNM && REGISTRATION) and reinforced by backend 403 enforcement; runtime body-scan check gave a false positive because 'Close Net Metering' also appears in the Workflow History timeline.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/ecps/{id}/tasks/{task_id}/complete", "issue": "When INSTALLATION_MEMBER completes 'Close Net Metering' the stage auto-advances to REGISTRATION_2 and the response wrapper (get_ecp) then returns 404 because ecp_filter_for_role hides REGISTRATION_2 ECPs from INSTALLATION_MEMBER role. The underlying task-complete + stage transition succeed, but the client sees a 404 body. Consider returning a minimal success payload (or bypassing the scope filter on this immediate post-write response) so the UI does not see a spurious 404 on a successful action."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "INSTALLATION_MEMBER completes Close Net Metering", "issue": "Because backend response returns 404 after auto-advance, frontend logs a 404 network error; the UI still refreshes and correctly reflects the advance (Registration 2). No functional break, but the console shows an error.", "affected_selectors": ["complete-task-<id>"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_net_metering_assign.py",
+    "/app/test_reports/pytest/iter21_nm.xml"
+  ],
+  "action_items": [
+    "Optional: adjust complete_task's return path so INSTALLATION_MEMBER doesn't receive 404 immediately after successful Close-NM completion (auto-advance out of INSTALLATION_MEMBER visibility). Return an ecp payload fetched with an admin-scoped or bypass filter, or return a lightweight {status: 'advanced', current_stage: 'REGISTRATION_2'} to avoid the client-side 404."
+  ],
+  "critical_code_review_comments": [
+    "server.py _advance_stage() correctly clears responsible_user/responsible_user_name for every target stage via the else block (line 876-878). The special-cased INSTALLATION branch re-purposes current_team to INSTALLATION_MANAGER for the awaiting-assignment gate — no leak of the previous stage's responsible_user into NM.",
+    "server.py assign_installation() properly branches on stage: NET_METERING requires 'Request Net Metering from CSPDCL' to be completed before allowing Close-NM assignment; any other non-INSTALLATION stage returns 400 — matches spec.",
+    "server.py complete_task() correctly enforces team==INSTALLATION_MEMBER with responsible_user==user.id for Close NM. Combined with the response 404 above, the post-complete UX may look erroneous — see minor issue.",
+    "ECPDetail.jsx line 94-96 filter is correct (task_name !== 'Close Net Metering' for REGISTRATION); Close NM chip/UI section renders assign / assigned / awaiting-prereq states correctly for INSTALLATION_MANAGER and INSTALLATION_MEMBER."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_net_metering_assign.py"
+  ],
+  "success_rate": {"backend": "100% (7 passed, 1 conditional skip)", "frontend": "100% (2/2 assigned/complete paths passed; REGISTRATION filter verified by code + backend 403)"},
+  "test_credentials": "As in /app/memory/test_credentials.md — registration/Reg@123, instmgr/InstMgr@123, instmem/InstMem@123",
+  "seed_data_creation": "None. Used ECPs ba3112c3-... (advanced to REGISTRATION_2 during test_07) and c9589b18-... (advanced to REGISTRATION_2 during frontend Mark Done). Both were pre-existing NM ECPs. After the run, only 1 partial NM ECP (9e777f7e) remains — it has legacy single 'Net Metering' task (no 5-task set) and can't be used for future NM regression.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "After this run, only ECP 9e777f7e is left in NET_METERING and it has legacy schema (single 'Net Metering' task). To re-test the NM flow, drive a fresh ECP from INSTALLATION -> NET_METERING (there was one at b2d60ebb in INSTALLATION READY_TO_INSTALL). The test file /app/backend/tests/test_net_metering_assign.py auto-discovers a suitable NM ECP; it will skip test_03 if no fresh-state NM ECP exists.",
+  "rca of the issue": "The bug: previously entering NET_METERING kept the Installation-stage responsible_user, allowing REGISTRATION to complete an INSTALLATION_MEMBER-team task via the pre-carried assignee. Fix (server.py _advance_stage): the else branch always sets responsible_user/name to None on stage transitions to NM (and other stages). Fix (server.py assign_installation): now accepts stage NET_METERING when 'Request Net Metering from CSPDCL' has been completed, then sets responsible_user for Close NM. Fix (ECPDetail.jsx): filters out 'Close Net Metering' from the REGISTRATION stage-work list. All three layers verified."
+}

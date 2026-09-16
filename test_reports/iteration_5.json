@@ -1,0 +1,40 @@
+{
+  "summary": "Iteration 5: Phase 2 (Item Master, mandatory-field config, lead item/qty/location fields, project-price pre/post-handoff gating, post-handoff Lead PATCH, commercial change propose/approve/reject/RBAC/owner-dashboard-banner, quotation PDF with RBAC) tested end-to-end. Wrote new pytest file /app/backend/tests/test_phase2.py (25 tests) — 25/25 PASS. Frontend UI verified via Playwright: OWNER Dashboard shows 'X Commercial Changes awaiting your approval' banner with Review button; toggling item=required in /lead-fields correctly blocks LEAD lead-create with a 400 'required' toast; commercial-change card exposes approve, reject, and reject-remarks controls; quotation-btn on LeadDetail triggers PDF download (quotation_TEST_LEAD_*.pdf). Item Master create + duplicate flow verified in UI (item created, list refreshed). Field-config reset back to empty as required. Phase 1 legacy pytest suites (backend_test.py, test_issues_1_to_6.py, test_issues_7_to_19.py, test_audit_spec.py) had 42/60 pre-existing failures — these are NOT Phase 2 regressions; they are test-data pollution: those files hardcode phone numbers like '9998887777'/'9990000000'/'9999900000' which now collide against DB records from prior iterations because duplicate-active-phone 409 is enforced. Recommend main agent refactor those files to use random phones (matches pattern used in test_phase2.py).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "N/A (test hygiene)", "issue": "Phase-1 test files use hardcoded phone numbers that now collide with prior-run data (409). Not a code bug — fix by uniqueifying phones with uuid, as done in test_phase2.py."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase2.py",
+    "/app/test_reports/pytest/phase2.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: uniqueify hardcoded phones in backend_test.py / test_issues_1_to_6.py / test_issues_7_to_19.py / test_audit_spec.py so Phase-1 regression suite becomes idempotent (Phase 2 phone-dup 409 is behaving correctly; only tests need to adapt).",
+    "OPTIONAL (from iteration 4): still open — add lead_creator_name to /api/payments/monitor rows."
+  ],
+  "critical_code_review_comments": [
+    "server.py set_project_price at line 387-388 has dead branch: it checks `if lead.get('ecp_id')` to also update ECP, but line 381 already returns 400 when ecp_id is present. Remove the dead ECP-update in this endpoint (post-handoff path is guaranteed to have raised).",
+    "commercial-change/approve does not require any remarks — spec silent, but consider audit trail. Reject requires remarks (correct).",
+    "propose_commercial requires user role LEAD only (line 1476). This blocks OWNER from proposing a commercial change on behalf of a lead. If spec intends OWNER-can-do-anything, add OWNER to require(). Current design forces OWNER to only approve/reject; confirm with product.",
+    "quotation_pdf imports reportlab modules inside the function — fine for cold-start but consider top-level import for perf.",
+    "server.py is now 1636 lines. Item Master, commercial-change, quotation, lead-field-config could each be extracted to their own router files.",
+    "enforce_lead_mandatory treats 0 as missing for project_price (`v in (None, '', 0)`) — legitimate 'free lead' with 0 price will fail when project_price is required. Consider distinguishing None from 0 explicitly."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase2.py"
+  ],
+  "success_rate": {"backend": "100% (25/25 Phase 2)", "frontend": "100% for the Phase 2 UI smoke flows tested"},
+  "test_credentials": "owner: anoopdube07@gmail.com/Owner@123; manager/Manager@123; lead/Lead@123; registration/Reg@123; accounts/Acct@123; dispatch/Disp@123; installation/Install@123 — all working.",
+  "seed_data_creation": "test_phase2.py creates its own TEST_ITEM_/TEST_LI_/TEST_LEAD_ items and leads per test using uuid prefixes. Also creates two extra LEAD users (lead2_/lead3_/lead4_ prefixed) for cross-ownership RBAC tests — these persist. lead-field-config is reset to empty in an autouse fixture at teardown.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase 2 backend + frontend verified. Legacy phase-1 test files fail due to duplicate-phone 409 collisions with existing DB data — the app behaviour is correct, only the test files are non-idempotent (hardcoded phones). Use test_phase2.py pattern (uuid-based phone/name) as a template if you re-write them. Field-config is left empty at end of run so it doesn't block lead creation.",
+  "rca of the issue": "N/A — no functional bugs found in Phase 2."
+}

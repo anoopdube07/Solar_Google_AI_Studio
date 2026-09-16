@@ -1,0 +1,25 @@
+{
+  "summary": "Validated LEAD list visibility security fix in GET /api/ecps. Added focused regression suite /app/backend/tests/test_ecp_lead_list_scope.py covering: (1) LEAD list only returns ECPs with lead_owner_id in (self.id, None); (2) LEAD list is subset of OWNER list; (3) LEAD list<->detail parity; (4) OWNER/MANAGER/ACCOUNTS still see full list. Since the seeded data has all 698 ECPs owned by the test 'lead' user (or null), the suite also injects a synthetic foreign-owned ECP directly into MongoDB (with cleanup) to prove: LEAD cannot list it, LEAD detail returns 404, OWNER can still see it. Re-ran the existing IDOR regression suite test_ecp_detail_scope.py alongside — all pass.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_ecp_lead_list_scope.py",
+    "/app/backend/tests/test_ecp_detail_scope.py",
+    "/app/test_reports/pytest/iter11_lead_list.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "ecp_filter_for_role now correctly returns {'lead_owner_id': {'$in': [user.id, None]}} for LEAD — matches list_ecps and get_ecp; no divergence.",
+    "Data observation: all seed ECPs share a single lead_owner_id (test lead) or null; consider seeding at least one additional LEAD user with ECPs to make real (non-synthetic) IDOR tests actionable and to keep dashboard tests meaningful."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_ecp_lead_list_scope.py (new)"
+  ],
+  "success_rate": {"backend": "100% (22 passed, 1 skipped)", "frontend": "n/a"},
+  "test_credentials": "Used credentials from /app/memory/test_credentials.md (OWNER, MANAGER, LEAD, ACCOUNTS).",
+  "seed_data_creation": "Test fixture inserts one synthetic ECP with prefix TEST_ECP_FOREIGN_* and lead_owner_id=TEST_FOREIGN_LEAD_* directly into MongoDB (test_database.ecps) and deletes it in teardown. No permanent data changes.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "LEAD scope tests live in /app/backend/tests/test_ecp_lead_list_scope.py. Because seed data has a single lead_owner, isolation is proven via a synthetic-insert fixture that talks to MongoDB directly. If seed changes, the skipped test test_lead_detail_404_for_other_owner_ecp will start executing on real data.",
+  "rca of the issue": "Pre-fix ecp_filter_for_role() LEAD branch returned {} making list_ecps unrestricted for LEAD (while dashboard and detail were already scoped). Fix aligns LEAD filter with {'lead_owner_id': {'$in': [user.id, None]}} restoring list/detail parity and closing the IDOR-list gap. Verified by direct DB injection of a foreign-owned ECP that OWNER can see but LEAD cannot (list absence + detail 404)."
+}

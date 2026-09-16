@@ -1,0 +1,24 @@
+{
+  "summary": "Verified the 3 confirmed-gap fixes for iteration 8 (targeted scope only, per main-agent instruction). Backend: authored /app/backend/tests/test_iteration8_scope.py — 8/8 PASS. Frontend: live UI smoke on the deployed preview URL confirmed all three items. (1) OWNER user-creation dropdown: Users page -> new-user-button opens the Create User modal; the [data-testid=user-role-select] dropdown now lists Owner, Process Owner / Manager, Lead Team, Registration Team, Accounts Team, Dispatch Team, Installation Team, Installation Manager, Installation Member, Complaint Team (all 10 wf.ROLES). Created users with roles INSTALLATION_MANAGER, INSTALLATION_MEMBER, COMPLAINT via POST /api/users -> 200 each; the fresh usernames log in successfully (POST /api/auth/login -> 200). Non-owner (LEAD) POST /api/users -> 403 (backend RBAC enforced; note server also lowercases usernames on create). (2) GET /api/dashboard for the 3 new roles returns exactly the required keys: INSTALLATION_MANAGER -> {awaiting_assignment, install_in_process, pending_acceptance, sv_awaiting, sv_in_process, net_metering}; INSTALLATION_MEMBER -> {sv_assigned, sv_today, sv_completed, ready_to_install, install_in_process, pending_acceptance}; COMPLAINT -> {registered, assigned, in_progress, critical, overdue, due_today}. All values are ints. Frontend dashboards render non-blank: instmgr shows 'Installation Supervision' + 'Site Visit Supervision' stat cards; instmem shows 'My Installations' + 'My Site Visits'; complaint shows 'Complaint Register' cards. (3) COMPLAINT dashboard header shows the [data-testid=dashboard-register-complaint] button; clicking it navigates to /complaints?new=1 and auto-opens the Register Complaint dialog (Title/Description/Category/Priority fields visible). The [data-testid=register-complaint-btn] is also present on the Complaints page header. End-to-end complaint creation succeeded via POST /api/complaints (with title + category_id + priority=MEDIUM) — status returned as REGISTERED and the complaint appears in the subsequent GET /api/complaints list. When no active category exists, OWNER can create one via POST /api/complaint-categories before registering (verified in the E2E test).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iteration8_scope.py",
+    "/app/test_reports/pytest/iteration8.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is now 2368 lines — split into routers (users/dashboard/complaints/leads/ecps) is overdue.",
+    "POST /api/users lowercases the incoming username; this is not documented in any error message. Front-end should either mirror the lowercase transform on the input or the API should return the canonical username in a 200 response note. Test had to compare uname.lower() to detect it.",
+    "Complaint model requires 'title' but the review-request bullet did not mention it; UI Register dialog does surface Title with a * required marker, so functionally fine — just worth calling out in the API contract docs.",
+    "workflow.ROLES already includes all 10 roles and dashboard() branches are correct; no additional backend changes needed."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration8_scope.py"],
+  "success_rate": {"backend": "100% (8/8 iteration8 scope tests pass)", "frontend": "100% (Users role dropdown, 3 new-role dashboards, complaint CTA + auto-open dialog all verified)"},
+  "test_credentials": "Owner anoopdube07@gmail.com/Owner@123; instmgr/InstMgr@123; instmem/InstMem@123; complaint/Comp@123; lead/Lead@123 — all working.",
+  "seed_data_creation": "test_iteration8_scope.py creates TEST_<role>_<uuid> users (server lowercases username) and, if the complaint category master is empty, an OWNER-scoped TEST_CAT_<uuid> category. Also creates one TEST complaint (title='TEST complaint title', priority=MEDIUM) referencing the first available lead.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Targeted iteration 8 scope. New test file: /app/backend/tests/test_iteration8_scope.py (8 tests, ~1s each, no xdist issues). Full 159-suite intentionally NOT re-run per main-agent instruction. Note when creating users via API you MUST pass a 'phone' field (required Pydantic field) and expect the returned username to be lower-cased. Complaint POST body requires 'title'.",
+  "rca of the issue": "N/A — no functional bugs found in the audited scope."
+}

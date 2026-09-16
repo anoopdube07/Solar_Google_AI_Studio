@@ -1,0 +1,31 @@
+{
+  "summary": "AUDIT run of ECP Project Management & Lead Tracking. Executed 31/31 backend pytest cases (20 prior + 11 new audit-focused). All PASS. Verified: (1) spec-D change — OWNER is now 403 on POST /api/leads/{id}/action for ALL 5 actions (YES/NO/FOLLOW_UP/SITE_VISIT/ESCALATION); MANAGER also 403; only LEAD may decide. (2) Dispatch continuity — after start-dispatch with FIRST=CONFIRMED, patching FIRST back to PENDING does NOT stop dispatch (dispatch_started stays true, derived remains DISPATCH_IN_PROCESS). (3) Financing NO->YES after REGISTRATION_1 does not regress stage; loan tasks become applicable in-place; RBAC enforced (REGISTRATION/ACCOUNTS/DISPATCH/INSTALLATION 403; LEAD/MANAGER/OWNER 200). (4) Users & PUT /sla owner-only — every non-OWNER role (incl. MANAGER) 403. (5) Task RBAC — REGISTRATION cannot complete an ACCOUNTS_1 task (403). (6) Escalations MANAGER 403 for list and return. (7) Site visits — INSTALLATION cannot complete a visit assigned to another installer (403); assignee can. (8) Auth hardening — 9 protected endpoints return 401 without token. Full pipeline REGISTRATION_1→ACCOUNTS_1→DISPATCH(payment gate + task-before-start gate + duplicate FIRST rejected)→INSTALLATION→NET_METERING→REGISTRATION_2→ACCOUNTS_2→COMPLETED (no FINAL required) still passes. Closure RBAC/OTHER-remarks/re-close-block, LOST-reopen OWNER-only, follow-up past-date rejection, escalation owner-remarks-mandatory all confirmed. Frontend smoke: Owner and Lead login work; dashboards render role-specific counters correctly (Owner sees Leads/ECP/Payments panels; Lead sees only My Lead Queue + Leads/ECP nav — Users/SLA/Escalations/Payments/Site Visits hidden). Welcome toast shown; logout via localStorage works.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_audit_spec.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is still a single ~1050 line file. As Phase 2 grows, split into routers (auth/leads/ecps/payments/dashboard) for maintainability.",
+    "_advance_stage on final step keeps current_stage='ACCOUNTS_2' and sets status=COMPLETED. Works correctly but a bit surprising when reading the record; consider explicit current_stage='COMPLETED' to simplify downstream filtering.",
+    "list_leads returns [] for ACCOUNTS/DISPATCH/INSTALLATION/REGISTRATION. Correct per spec (they see ECPs only), but confirmed OK; no lead-level PII leaks.",
+    "No pagination on list endpoints; .to_list(3000/5000) will truncate silently at scale — fine for V1.",
+    "Payment PATCH does not re-check whether it is FIRST/FINAL uniqueness (patching only updates fields, not type — good, cannot violate uniqueness).",
+    "get_lead has no explicit role restriction — non-LEAD/OWNER/MANAGER can still GET /api/leads/{id} by id-guessing. Currently _lead_bundle allows any authenticated user. Consider restricting to lead_visible_roles + ACCOUNTS (for payment context) or add a scoping check. Low severity because IDs are UUIDs and endpoint isn't linked in UI for those roles."
+  ],
+  "updated_files": ["/app/backend/tests/test_audit_spec.py"],
+  "success_rate": {"backend": "100% (31/31)", "frontend": "100% for smoke flows (login for OWNER & LEAD, dashboards render, nav scoped per role)"},
+  "test_credentials": "owner: anoopdube07@gmail.com/Owner@123; manager/Manager@123; lead/Lead@123; registration/Reg@123; accounts/Acct@123; dispatch/Disp@123; installation/Install@123",
+  "seed_data_creation": "Tests create fresh TEST_L_* / TEST_A_* leads and downstream ECPs per case. One extra INSTALLATION user (install2_XXXX) created via OWNER endpoint for site-visit assignee-only test.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Two test files exist: /app/backend/tests/backend_test.py (broad coverage) and /app/backend/tests/test_audit_spec.py (spec-D + dispatch continuity + RBAC hardening). Use future dates (2027-*) for follow-up. All 31 tests idempotent per run. If spec later reintroduces OWNER-can-act-on-leads, adjust TestOwnerCannotDecideLeadAction.",
+  "rca of the issue": "No blocking issues found in this audit. All spec-adherence changes (OWNER 403 on lead action, dispatch continuity, financing no-regress) are correctly enforced at the API layer."
+}

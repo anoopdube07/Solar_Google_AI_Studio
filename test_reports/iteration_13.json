@@ -1,0 +1,25 @@
+{
+  "summary": "Verified LEAD authorization fix on POST /api/ecps/{ecp_id}/financing. Added focused regression suite /app/backend/tests/test_ecp_financing_scope.py (6 tests) and re-ran the three existing scope suites. Fix at server.py:1096 correctly rejects a LEAD user attempting to change financing on an ECP owned by a different LEAD (403) without mutating either the ECP.financing_required or the linked Lead.financing_required. LEAD retains access to own-owned and unassigned (lead_owner_id=None) ECPs. MANAGER and OWNER unaffected on foreign-owned ECPs. Non-existent id still returns 404. Response payload continues to be the ECP detail (via get_ecp).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_ecp_financing_scope.py",
+    "/app/test_reports/pytest/iter13_financing.xml",
+    "/app/test_reports/pytest/iter13_regression.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Fix is placed correctly AFTER the 404 fetch and BEFORE _apply_ecp_financing and the linked-Lead update, so no partial mutation is possible on 403.",
+    "Ownership rule (lead_owner_id in (user.id, None)) is consistent with the established pattern used across leads/ecps endpoints (server.py lines 269, 370, 496, 799, 804, 1679, 1709, 1788, 1830).",
+    "Consider extracting the repeated `if user['role'] == 'LEAD' and lead/ecp.get('lead_owner_id') not in (user['id'], None): raise 403` pattern into a small helper (e.g. assert_lead_owns(user, doc)) to DRY the ~8 duplicated occurrences.",
+    "server.py is 2437 lines — file-size guideline (>700 lines) is violated; recommend splitting by domain (auth, leads, ecps, workflow, dashboard, uploads)."
+  ],
+  "updated_files": ["/app/backend/tests/test_ecp_financing_scope.py"],
+  "success_rate": {"backend": "100%", "frontend": "n/a"},
+  "test_credentials": "Loaded from /app/memory/test_credentials.md — OWNER/MANAGER/LEAD used.",
+  "seed_data_creation": "Per-test synthetic ECP+Lead docs are inserted directly into MongoDB (TEST_ECP_*/TEST_LEAD_* prefixes), with lead_owner_id set to a foreign TEST_FOREIGN_LEAD_* id, the LEAD user's id, or None. All synthetic docs (plus any ecp_tasks created by _apply_ecp_financing) are torn down in each test's finally block.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Financing security regression lives at /app/backend/tests/test_ecp_financing_scope.py. Run with -n0 (the -n auto race documented in iteration_12 still applies to synthetic-insert tests that share DB templates). The three referenced scope suites (test_ecp_detail_scope, test_ecp_lead_list_scope, test_lead_dashboard_scope) are all green as of this iteration.",
+  "rca of the issue": "Pre-fix: POST /api/ecps/{ecp_id}/financing required role in (LEAD, MANAGER, OWNER) but resolved the ECP only by id, bypassing the lead_owner_id scope enforced elsewhere. A LEAD could therefore toggle financing_required on any ECP (and the fanout in the same handler mutated the linked Lead's financing_required too), enabling cross-lead data corruption. Fix: after fetching ECP (404 if missing) and BEFORE _apply_ecp_financing and the linked Lead update, if user.role=='LEAD' and ecp.lead_owner_id not in (user.id, None), raise 403. Reproduction (pre-fix): login as LEAD; insert synthetic ECP+Lead with lead_owner_id=<foreign>; POST financing → 200 + both docs mutated. Post-fix: same call → 403, both docs unchanged (asserted by test_lead_forbidden_on_foreign_ecp)."
+}

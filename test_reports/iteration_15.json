@@ -1,0 +1,26 @@
+{
+  "summary": "Frontend-only RBAC test of 'Assign Installation Member' button visibility and assignment flow on ECPDetail. All 7 role scenarios PASS. INSTALLATION_MANAGER can now see the assign button on INSTALLATION-stage AWAITING_ASSIGNMENT ECPs, open the dialog, pick an installer from /api/users/team/INSTALLATION (32 options), submit, and install_status transitions to READY_TO_INSTALL. MANAGER/OWNER unchanged and still work. INSTALLATION_MEMBER, REGISTRATION, DISPATCH, LEAD correctly do NOT see the button. Additionally, discovered and fixed a critical blocker in Login.jsx (broken import causing 'useAuth is not defined' runtime error which blocked ALL logins).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Login.jsx had an empty destructured import from @/context/AuthContext -- I fixed it to import useAuth so login works. Please review the fix and audit for similar broken imports elsewhere.",
+    "Minor: ECPDetail children (e.g. InstallationWork or a nested component) trigger 404 pageerrors for non-installation roles when viewing an INSTALLATION-stage ECP; not related to the current fix but worth guarding those fetches by role."
+  ],
+  "critical_code_review_comments": [
+    "Login.jsx line 3 had 'import { } from \"@/context/AuthContext\";' which crashed the entire login page. Fixed.",
+    "ECPDetail.jsx correctly gates the assign button on install_status==='AWAITING_ASSIGNMENT' && canAssignInstall (with INSTALLATION_MANAGER included). Fix looks correct."
+  ],
+  "updated_files": ["/app/frontend/src/pages/Login.jsx"],
+  "success_rate": {"backend": "n/a", "frontend": "100%"},
+  "test_credentials": "See /app/memory/test_credentials.md; all used successfully.",
+  "seed_data_creation": "None; used existing ECPs c9589b18 (assigned during test — moved to READY_TO_INSTALL) and 66eff4ad (visibility-only, still AWAITING_ASSIGNMENT).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "ECP c9589b18-2bcd-4782-afeb-3054ee6f53a4 was moved out of AWAITING_ASSIGNMENT (now READY_TO_INSTALL). Many other AWAITING_ASSIGNMENT ECPs (25+) remain for future tests. Login page was broken; fix applied.",
+  "rca of the issue": "N/A — assign button RBAC fix works as intended. Separate Login.jsx bug: empty named-import destructuring left useAuth undefined; likely an earlier edit removed the identifier but not the braces."
+}

@@ -1,0 +1,45 @@
+{
+  "summary": "Iteration 4: full regression (Phase 1 + Issues 1-6) + new Issues 7-19. Backend pytest: 76/77 PASS. Single failure is a real backend spec violation for Issue 14 (payment_monitor rows do NOT include lead_creator_name). Also had to reset seeded demo user passwords (were mismatched at start of run — hash from an older seed) via a one-shot script; all 6 demo logins working after that. Fixed pre-existing test files (test_audit_spec.py, test_issues_1_to_6.py) to include the newly-required 'phone' field on POST /users payloads (Issue 15 side effect). Frontend smoke covered: Owner Work Done page shows activities incl. 'Lead Created', Export CSV button present, Lead Employees page shows seeded names (Rohan/Kavya/Arjun), Lead Team Leads dropdown filter present, Manager Site Visits filter dropdown present + 'Awaiting Install Assignment' tile visible in mobile screenshot, mobile viewport (390x844) collapses sidebar to hamburger and clicking data-testid=sidebar-open opens data-testid=mobile-drawer with all nav items, desktop (1920) keeps sidebar and hides hamburger. Issue 7 (lead employee master with active_only + lead_creator snapshot on lead+ECP + preserved after deactivation/rename), Issue 8 (?status=PENDING/FOLLOW_UP/LOST filters), Issue 9 (LEAD sees ?stage= and ?view=CLOSED), Issue 10 (PENDING drill), Issue 11 (?followup=today is date-based: today's FU lead present, future FU lead absent), Issue 12/13 (payment_monitor project-wise, PENDING payments don't reduce receivable, dashboard counters match), Issue 15 (phone required on create, empty phone rejected, PATCH updates, seeded pre-existing users without phone still login), Issue 16 (OWNER-only /activities, IST-today default filter, team filter, key events logged), Issue 17 (OWNER-only CSV export, include_money toggles money columns, text/csv media type, correct header row including 'Lead Creator'), Issue 18 (Manager dashboard tiles present + AWAITING_ASSIGNMENT view returns only INSTALLATION+AWAITING_ASSIGNMENT rows), Issue 19 (mobile drawer works) — all PASS.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "GET /api/payments/monitor", "issue": "Response rows do not include lead_creator_name field. Spec (Issue 14) requires it; ECP documents already carry lead_creator_name from create_ecp_from_lead. Fix: in server.py payment_monitor add 'lead_creator_name': e.get('lead_creator_name') to the appended dict.", "priority": "HIGH"}
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_audit_spec.py",
+    "/app/backend/tests/test_issues_1_to_6.py",
+    "/app/backend/tests/test_issues_7_to_19.py",
+    "/app/test_reports/pytest/all.xml"
+  ],
+  "action_items": [
+    "Add 'lead_creator_name' to each row in payment_monitor (/api/payments/monitor) so Accounts sees the Lead Creator per Issue 14.",
+    "OPTIONAL: seed.py in server.py currently only inserts demo users if missing; consider updating passwords on each start so they stay in sync with .env / docs (would prevent the mismatch I hit at start of run). Not blocking — one-shot reset was enough."
+  ],
+  "critical_code_review_comments": [
+    "server.py list_leads followup=today branch has dead code: first query result 'fus' is assigned but never used (a second full scan is done immediately after). Not a bug, but wasted DB round-trip.",
+    "get_lead has no role guard — any authenticated user can GET /api/leads/{id}. Same finding as iteration 3. Consider scoping to lead_visible_roles + Accounts (for lead creator lookup) if needed.",
+    "seed() function is non-idempotent for passwords: if OWNER_PASSWORD changes in .env, existing owner user is NOT updated. Same for demo users. Follow guideline: 'seed_admin updates existing admin if password changed'.",
+    "server.py is now ~1320 lines and still a single-module monolith. Recommend splitting into routers for maintainability.",
+    "Payment monitor rows still include full 'payments' array per project (unbounded); consider pagination or trimming for Phase 2.",
+    "SLA computation for enrich_ecp runs on every list request (N+1 first/final payment lookups inside enrich_ecp). Acceptable now but flag for perf."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_audit_spec.py",
+    "/app/backend/tests/test_issues_1_to_6.py",
+    "/app/backend/tests/test_issues_7_to_19.py"
+  ],
+  "success_rate": {"backend": "98.7% (76/77)", "frontend": "100% for smoke flows"},
+  "test_credentials": "owner: anoopdube07@gmail.com/Owner@123; manager/Manager@123; lead/Lead@123; registration/Reg@123; accounts/Acct@123; dispatch/Disp@123; installation/Install@123 (demo passwords had to be re-hashed once via one-shot script — see summary; now working).",
+  "seed_data_creation": "New test file test_issues_7_to_19.py creates TEST_J_*/TEST_LE_* leads, employees, and users per test (idempotent, uuid-prefixed). No production data touched.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Four backend test files now: backend_test.py, test_audit_spec.py, test_issues_1_to_6.py, test_issues_7_to_19.py — total 77 cases, all pass except the single Issue 14 gap (payment_monitor missing lead_creator_name). If demo user passwords are ever out of sync, rehash them with the same one-shot script used here (see iteration_4 summary). The .env for owner is honored on first-seed only. Pytest runs in ~170s; note the 120s default bash timeout truncates output — use --junitxml or run in background.",
+  "rca of the issue": "Issue 14 root cause: server.py payment_monitor() builds each row from ECP fields (ecp_id, lead_name, customer_phone, stage, stage_label, status, payments, **_ecp_receivable()) but omits lead_creator_name which IS persisted on the ecps collection at create_ecp_from_lead (line 350). One-line fix: include 'lead_creator_name': e.get('lead_creator_name') in the rows.append(...) dict at ~line 1025."
+}

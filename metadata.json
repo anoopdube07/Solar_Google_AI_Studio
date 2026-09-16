@@ -1,0 +1,8 @@
+{
+  "name": "Solar Operations & Workflow Manager",
+  "description": "Solar rooftop project operations, lead tracking, stage-wise workflow, payments, and site visit management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

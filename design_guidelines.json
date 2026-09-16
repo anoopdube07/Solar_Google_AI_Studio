@@ -1,0 +1,307 @@
+{
+  "project_name": "ECP Project Management & Lead Tracking System",
+  "app_type": "saas_app_internal_erp",
+  "archetype": "TACTICAL_INDUSTRIAL_OPERATIONS",
+  "archetype_description": "High-density command center UI tailored for solar energy ERP operations. Emphasizes operational clarity, status visibility, SLA tracking, minimal friction data entry, and zero-ambiguity workflow routing across 7 distinct organizational roles.",
+  "theme_strategy": {
+    "default_mode": "light",
+    "mode_toggle_supported": true,
+    "light_mode": {
+      "background": "#F8FAFC",
+      "surface_card": "#FFFFFF",
+      "surface_muted": "#F1F5F9",
+      "border": "#E2E8F0",
+      "border_highlight": "#CBD5E1",
+      "text_primary": "#0F172A",
+      "text_secondary": "#475569",
+      "text_muted": "#64748B"
+    },
+    "dark_mode": {
+      "background": "#0B0F17",
+      "surface_card": "#111827",
+      "surface_muted": "#1F2937",
+      "border": "#374151",
+      "border_highlight": "#4B5563",
+      "text_primary": "#F9FAFB",
+      "text_secondary": "#D1D5DB",
+      "text_muted": "#9CA3AF"
+    }
+  },
+  "colors": {
+    "brand_primary": {
+      "hex": "#0284C7",
+      "tailwind": "sky-600",
+      "label": "CSPDCL Utility Blue"
+    },
+    "solar_gold": {
+      "hex": "#D97706",
+      "tailwind": "amber-600",
+      "label": "Solar Energy Amber"
+    },
+    "emerald_success": {
+      "hex": "#059669",
+      "tailwind": "emerald-600",
+      "label": "Approved / Cleared / Closed"
+    },
+    "crimson_alert": {
+      "hex": "#DC2626",
+      "tailwind": "red-600",
+      "label": "Delayed / ESCALATION / Payment Blocked"
+    },
+    "slate_obsidian": {
+      "hex": "#0F172A",
+      "tailwind": "slate-900",
+      "label": "Command Header & Dark Accents"
+    },
+    "status_badges": {
+      "PENDING": "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800",
+      "YES": "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800",
+      "NO": "bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700",
+      "FOLLOW_UP": "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800",
+      "SITE_VISIT": "bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-800",
+      "ESCALATION": "bg-red-100 text-red-800 border-red-300 dark:bg-red-950/50 dark:text-red-300 dark:border-red-800",
+      "PAYMENT_BLOCKED": "bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800",
+      "READY_FOR_DISPATCH": "bg-teal-100 text-teal-800 border-teal-300 dark:bg-teal-950/50 dark:text-teal-300 dark:border-teal-800",
+      "DISPATCH_IN_PROCESS": "bg-indigo-100 text-indigo-800 border-indigo-300 dark:bg-indigo-950/50 dark:text-indigo-300 dark:border-indigo-800",
+      "DELAYED": "bg-red-50 text-red-700 border-red-400 animate-pulse dark:bg-red-950/60 dark:text-red-200 dark:border-red-700"
+    }
+  },
+  "typography": {
+    "font_family_headings": "Work Sans, Outfit, sans-serif",
+    "font_family_body": "Plus Jakarta Sans, Inter, sans-serif",
+    "font_family_mono": "JetBrains Mono, Menlo, monospace",
+    "font_weights": {
+      "regular": 400,
+      "medium": 500,
+      "semibold": 600,
+      "bold": 700,
+      "black": 900
+    },
+    "size_hierarchy": {
+      "h1_hero": "text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight",
+      "h2_section": "text-xl sm:text-2xl font-bold tracking-tight",
+      "h3_card_header": "text-base sm:text-lg font-semibold",
+      "body_standard": "text-sm sm:text-base leading-relaxed",
+      "body_dense": "text-xs sm:text-sm",
+      "mono_label": "text-xs font-mono uppercase tracking-wider text-slate-500"
+    }
+  },
+  "spacing_and_layout": {
+    "grid_strategy": "MODE_B_HIGH_DENSITY",
+    "container_padding": "px-4 sm:px-6 lg:px-8 py-6",
+    "card_padding": "p-4 sm:p-5",
+    "gap_density": "gap-4 sm:gap-6",
+    "radius": "rounded-lg",
+    "layout_rules": [
+      "Every major page must display a clear Header Bar with Active Role Indicator, Role Switcher for testing, User Info, and Dark Mode Toggle.",
+      "The top section of every role dashboard must feature Clickable Metric Counter Cards that act as immediate filter toggles for data tables below.",
+      "CURRENT STATUS, CURRENT TEAM, CURRENT PERSON, and NEXT ACTION must be highlighted in prominent visual highlight boxes on all detail views.",
+      "Use subgrid and h-full on direct grid children to eliminate jagged card bottoms.",
+      "Ensure all card borders have internal padding (min p-4) to avoid edge text collision."
+    ]
+  },
+  "key_workflows_and_stages": {
+    "lead_qualification": {
+      "initial_state": "PENDING",
+      "action_buttons": [
+        {
+          "id": "YES",
+          "label": "Convert to ECP Project (YES)",
+          "style": "bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+        },
+        {
+          "id": "NO",
+          "label": "Mark Unqualified (NO)",
+          "style": "bg-slate-600 hover:bg-slate-700 text-white"
+        },
+        {
+          "id": "FOLLOW_UP",
+          "label": "Schedule Follow-up",
+          "style": "bg-blue-600 hover:bg-blue-700 text-white"
+        },
+        {
+          "id": "SITE_VISIT",
+          "label": "Request Site Visit",
+          "style": "bg-purple-600 hover:bg-purple-700 text-white"
+        },
+        {
+          "id": "ESCALATION",
+          "label": "Escalate to Owner",
+          "style": "bg-red-600 hover:bg-red-700 text-white font-semibold"
+        }
+      ]
+    },
+    "ecp_execution_stages": [
+      {
+        "stage_num": 1,
+        "key": "REGISTRATION_1",
+        "title": "Registration Stage 1",
+        "assigned_team": "Registration Team",
+        "tasks": ["CSPDCL Online Portal Filing", "Aadhaar & Electricity Bill Verification", "Sanction Load Application"]
+      },
+      {
+        "stage_num": 2,
+        "key": "ACCOUNTS_1",
+        "title": "Accounts Stage 1",
+        "assigned_team": "Accounts Team",
+        "tasks": ["First Payment Milestone (10-30%) Verification", "Bank Transfer/Cheque Confirmation", "Issue Advance Receipt"]
+      },
+      {
+        "stage_num": 3,
+        "key": "DISPATCH",
+        "title": "Material Dispatch",
+        "assigned_team": "Dispatch Team",
+        "tasks": ["Solar Panel Modules Check", "Inverter & Mounting Structures Allocation", "Dispatch Vehicle Transit Log"]
+      },
+      {
+        "stage_num": 4,
+        "key": "INSTALLATION",
+        "title": "Site Installation",
+        "assigned_team": "Installation Team",
+        "tasks": ["Rooftop Structure Mounting", "Solar Panel & Inverter Wiring", "Work Complete Certificate & Site Photos"]
+      },
+      {
+        "stage_num": 5,
+        "key": "NET_METERING",
+        "title": "Net Metering & Inspection",
+        "assigned_team": "Registration Team",
+        "tasks": ["CSPDCL Inspection Request", "Bi-directional Net Meter Setup", "System Synchronization Test"]
+      },
+      {
+        "stage_num": 6,
+        "key": "REGISTRATION_2",
+        "title": "Registration Stage 2",
+        "assigned_team": "Registration Team",
+        "tasks": ["Final CSPDCL Subsidy / PPA Documentation", "Commissioning Report Upload"]
+      },
+      {
+        "stage_num": 7,
+        "key": "ACCOUNTS_2",
+        "title": "Accounts Stage 2",
+        "assigned_team": "Accounts Team",
+        "tasks": ["Final Payment Collection", "Subsidy Disbursement Audit", "No-Dues Certificate"]
+      },
+      {
+        "stage_num": 8,
+        "key": "CLOSED",
+        "title": "Project Handover & Closed",
+        "assigned_team": "Owner / Process Owner",
+        "tasks": ["Warranty Certificate Handover", "Customer Feedback Signoff"]
+      }
+    ]
+  },
+  "role_dashboards": {
+    "Owner": {
+      "title": "Owner Command Dashboard",
+      "primary_focus": "System-wide bottlenecks, Lead Conversion Rates, ECP Stage Distribution, Revenue/Payment Hold-ups, Overdue SLAs.",
+      "counter_cards": [
+        "Total Active Leads (Pending / Follow-up / Site Visit)",
+        "Active ECP Execution Projects (By Stage Buckets)",
+        "Delayed / SLA Breached Projects",
+        "Payment Blocked Dispatch Queues",
+        "Escalated Issues Requiring Owner Decision"
+      ]
+    },
+    "Process Owner / Manager": {
+      "title": "Operations Manager Portal",
+      "primary_focus": "Site visit assignments, workload distribution, team reassignment, bottleneck resolution.",
+      "counter_cards": [
+        "Unassigned Site Visits",
+        "Projects Approaching SLA Breach",
+        "Team Workload Matrix",
+        "Pending Stage Approvals"
+      ]
+    },
+    "Lead Team": {
+      "title": "Lead Qualification Workspace",
+      "primary_focus": "Action-required call queue, follow-up calendar, swift 5-button lead dispositioning.",
+      "counter_cards": [
+        "New Leads Needing Initial Action",
+        "Follow-ups Due Today",
+        "Site Visits Requested",
+        "Converted This Month (YES)"
+      ]
+    },
+    "Registration Team": {
+      "title": "CSPDCL & Net Metering Portal",
+      "primary_focus": "Registration 1 documentation, CSPDCL portal applications, Net Metering coordination, Registration 2 subsidy filing.",
+      "counter_cards": [
+        "Pending Registration 1 Submissions",
+        "Pending Net Metering Inspections",
+        "Pending Registration 2 Clearances",
+        "Total Completed Registrations"
+      ]
+    },
+    "Accounts Team": {
+      "title": "Payment Monitoring & Finance Control",
+      "primary_focus": "Payment milestone verification (Stage 1 & Stage 2), payment blocking triggers, bank transaction logs.",
+      "counter_cards": [
+        "Accounts Stage 1 Approvals Pending",
+        "Accounts Stage 2 Final Payments Due",
+        "Payment Blocked Projects",
+        "Total Revenue Confirmed"
+      ]
+    },
+    "Dispatch Team": {
+      "title": "Material & Logistics Dispatch Hub",
+      "primary_focus": "Material readiness, payment clearance verification before dispatch, transit logging.",
+      "counter_cards": [
+        "Projects Payment-Blocked (Cannot Dispatch)",
+        "Ready for Material Dispatch",
+        "Dispatch In Process",
+        "Successfully Delivered to Site"
+      ]
+    },
+    "Installation Team": {
+      "title": "Field & Rooftop Installation Portal",
+      "primary_focus": "Site survey scheduling, rooftop mounting execution, installation photo upload, completion signoff.",
+      "counter_cards": [
+        "Assigned Site Surveys",
+        "Materials Arrived - Ready to Install",
+        "Installations In Progress",
+        "Completed Waiting Net Metering"
+      ]
+    }
+  },
+  "component_guidelines": {
+    "stage_stepper": "Horizontal step bar on desktop and compact stepper card on mobile. Completed stages marked emerald green with checkmark icon; current active stage highlighted in CSPDCL blue with pulse glow; upcoming stages muted gray. Displays assigned team name and SLA countdown directly under each step node.",
+    "status_badges": "Always include status_badges classes with uppercase label, border, and clear dot indicator. DELAYED status badge MUST include pulse animation.",
+    "counter_cards": "Interactive metric boxes with large bold metric number (text-3xl font-black), icon, change indicator, and clear border. Clicking toggles data table filter for that specific bucket.",
+    "data_tables": "Sticky table header, clear row hover state (hover:bg-slate-50 dark:hover:bg-slate-800/50), inline action buttons, searchable filter bar, density switch, and explicit column for 'Current Team / Person' and 'Next Required Action'.",
+    "action_modals": "Focused modal dialogs for Lead 5-actions and Stage updates. Must enforce minimal required inputs (e.g. date picker, note text area, assignment dropdown) so data entry takes under 15 seconds."
+  },
+  "image_urls": {
+    "solar_installation_team": "https://images.unsplash.com/photo-1660330589505-9a433a742a7b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzJ8MHwxfHNlYXJjaHwzfHxzb2xhciUyMHBhbmVscyUyMGluc3RhbGxhdGlvbiUyMGNsZWFuJTIwZW5lcmd5JTIwcm9vZiUyMHdvcmtlcnxlbnwwfHx8fDE3ODg2NzM2ODZ8MA&ixlib=rb-4.1.0&q=85",
+    "rooftop_worker": "https://images.unsplash.com/photo-1660330589257-813305a4a383?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzJ8MHwxfHNlYXJjaHxfHxzb2xhciUyMHBhbmVscyUyMGluc3RhbGxhdGlvbiUyMGNsZWFuJTIwZW5lcmd5JTIwcm9vZiUyMHdvcmtlcnxlbnwwfHx8fDE3ODg2NzM2ODZ8MA&ixlib=rb-4.1.0&q=85",
+    "site_engineer_inspection": "https://images.unsplash.com/photo-1726221062299-88f27b653c59?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzJ8MHwxfHNlYXJjaHw0fHxzb2xhciUyMHBhbmVscyUyMGluc3RhbGxhdGlvbiUyMGNsZWFuJTIwZW5lcmd5JTIwcm9vZiUyMHdvcmtlcnxlbnwwfHx8fDE3ODg2NzM2ODZ8MA&ixlib=rb-4.1.0&q=85",
+    "utility_solar_array": "https://images.unsplash.com/photo-1698752822107-69f8973936e4?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1Mjh8MHwxfHNlYXJjaHw0fHxzb2xhciUyMHBsYW50JTIwZ3JpZCUyMGFlcmlhbCUyMHN1bnNldHxlbnwwfHx8fDE3ODg2NzM2OTV8MA&ixlib=rb-4.1.0&q=85",
+    "aerial_solar_grid": "https://images.unsplash.com/photo-1723133371535-1412bc2e412e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1Mjh8MHwxfHNlYXJjaHwyfHxzb2xhciUyMHBsYW50JTIwZ3JpZCUyMGFlcmlhbCUyMHN1bnNldHxlbnwwfHx8fDE3ODg2NzM2OTV8MA&ixlib=rb-4.1.0&q=85"
+  },
+  "testing_attributes": {
+    "convention": "data-testid='[feature]-[element_type]-[action_or_name]'",
+    "examples": [
+      "data-testid='login-username-input'",
+      "data-testid='login-password-input'",
+      "data-testid='login-submit-button'",
+      "data-testid='role-switcher-select'",
+      "data-testid='lead-filter-status-pending'",
+      "data-testid='lead-action-yes-button'",
+      "data-testid='ecp-stage-stepper-node-3'",
+      "data-testid='sla-config-save-button'"
+    ]
+  },
+  "instructions_to_main_agent": [
+    "Read /app/design_guidelines.json completely before writing frontend code.",
+    "Implement a dedicated demo Role Switcher on the main navigation bar so test users and evaluators can instantly jump between Owner, Manager, Lead Team, Registration, Accounts, Dispatch, and Installation views.",
+    "Ensure every table item displays clear derived badges like 'Payment Blocked', 'Ready for Dispatch', 'Dispatch In Process', or 'DELAYED'.",
+    "Maintain high visual density with crisp borders, clear SLAs in hours/days, and immediate single-click action modals.",
+    "All interactive elements MUST include data-testid attributes per the specified testing_attributes rules."
+  ],
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "Avoid generic AI slop centered layouts; build high-density, structured command dashboards.",
+    "Use layered contrast with 1px slate borders and zero text truncation on critical IDs/Names.",
+    "Ensure hover, focus, and active states have explicit text color overrides.",
+    "Use sonner for instant toast feedback when status/lead transitions occur.",
+    "Maintain responsive grid layouts with mobile-first breakpoints."
+  ]
+}

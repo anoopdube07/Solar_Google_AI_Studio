@@ -1,0 +1,24 @@
+{
+  "summary": "Phase 2 FINAL ACCEPTANCE verified. Wrote new pytest /app/backend/tests/test_phase2_final.py with 16 focused tests covering ONLY the new propagation behaviour + regression: 16/16 PASS. Playwright UI smoke on LEAD detail + ECP detail confirmed: (a) new [data-testid=ecp-customer-card] on ECP page renders Phone / Email / Address / Location / Item / Quantity; (b) [data-testid=lead-edit-btn] opens a dialog on a handed-off lead showing the amber warning 'This lead is handed off. Only contact details can be edited here — use a Commercial Change to modify item, quantity or price.'; (c) edit-email-input / edit-address-input / edit-location-input all present and edit-lead-save persists; (d) after save the ECP Customer & Product card immediately reflects the new email + address (mirrored on the ECP). Backend verified: POST-HANDOFF PATCH email/address/location -> 200 persists and mirrors to ECP customer_email/customer_address/location_link; PATCH ignores item_id/quantity/project_price (LeadEditBody strips them); direct /project-price on post-handoff lead -> 400 with 'commercial' message; commercial-change propose -> approve syncs lead + ECP item_id/item_name/item_unit/quantity/project_price; reject requires remarks (400 without, 200 with, values unchanged); RBAC 403 for non-owner LEAD on PATCH and /commercial-change, 403 for all non-OWNER roles on approve/reject and GET /commercial-changes/pending; workflow fields status/current_team/stage cannot be smuggled through PATCH; new ECP at YES-qualification carries item_id/item_name/item_unit/quantity/project_price/customer_email/customer_address/location_link. Regression: all 7 role logins OK; Lead YES creates exactly one ECP (idempotent on repeat action); duplicate-active-phone -> 409; reassign body uses assigned_user, manager+owner allowed, others 403; GET /api/ecps and /api/payments/monitor both 200. Phase-1 legacy suites (backend_test.py, test_issues_*, test_audit_spec.py) were NOT re-run in this iteration per main-agent context (already 77/77 in main-agent run). lead-field-config left empty at teardown (autouse fixture).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_phase2_final.py",
+    "/app/test_reports/pytest/phase2_final.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py set_project_price still contains a dead ECP-update branch after the 400 raise (already flagged iteration 5). Non-blocking.",
+    "server.py is now ~1684 lines — consider splitting into routers (leads, ecps, commercial, items, quotation) for maintainability.",
+    "propose_commercial requires role==LEAD only; OWNER cannot self-propose (would still need to approve). Confirm with product if this is intentional.",
+    "Edit dialog DialogContent lacks aria-describedby (console warning). Minor a11y polish."
+  ],
+  "updated_files": ["/app/backend/tests/test_phase2_final.py"],
+  "success_rate": {"backend": "100% (16/16 phase2-final)", "frontend": "100% (ECP customer card + lead edit propagation smoke)"},
+  "test_credentials": "owner: anoopdube07@gmail.com/Owner@123; lead/Lead@123; manager/Manager@123; registration/Reg@123; accounts/Acct@123; dispatch/Disp@123; installation/Install@123 — all working.",
+  "seed_data_creation": "test_phase2_final.py auto-creates TEST_FINAL_ITEM_/TEST_FINAL_LEAD_ per test with uuid phones (idempotent). Creates one extra LEAD user lead_final_<uuid> in TestRBAC for ownership negative test. lead-field-config reset to empty at session start + end.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase 2 final acceptance verified — post-handoff lead edit -> ECP mirror, commercial-change approve -> ECP sync, ECP-at-creation contact/item snapshot, RBAC and workflow-fields-safe all correct. Reassign endpoint takes {\"assigned_user\": <user_id>} (not lead_owner_id) — remember this if writing new tests. lead-field-config left empty. If you re-run Phase-1 legacy suites, expect duplicate-phone 409 collisions on hardcoded phones (iteration_5 note).",
+  "rca of the issue": "N/A — no functional bugs found."
+}

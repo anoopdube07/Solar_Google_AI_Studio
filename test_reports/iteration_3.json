@@ -1,0 +1,37 @@
+{
+  "summary": "Iteration 3: regression + Issues 1..6 verification. Backend: 48/48 pytest cases PASS (20 baseline in backend_test.py + 11 audit-spec + 17 new in test_issues_1_to_6.py). Updated backend_test.py::TestECPFlow::test_full_pipeline_no_financing to reflect new dispatch->Manager->Installation handoff (AWAITING_ASSIGNMENT + explicit /assign-installation before installer can act). Frontend smoke covered all requested flows: (1) Registration user ECP page filter dropdown actually filters — REG1=9 rows, REG2=1 row; (2) Dispatch dashboard tiles present (Payment Blocked/Ready/In Process/Past) and drill-through URL uses ?view=PAYMENT_BLOCKED and returns correct filtered set; (3) Manager Dashboard shows stat-awaiting-install-assignment card, Site Visits assign dropdown populated with active INSTALLATION employees (5 options) and assign UI reachable; (4) Manager can see AWAITING_ASSIGNMENT ECP list via /ecps?view=AWAITING_ASSIGNMENT (3 projects, current_team=MANAGER, stage=Installation, status=Awaiting Install Assignment); (5) Lead can enter Project Price on lead create and detail page correctly displays ₹5,55,000 after save; (6) Accounts dashboard shows all 4 counters (First Payment Pending 14 Projects, Subsequent 3 Projects, ₹20,50,000 pending, ₹40,50,000 total receivable); (7) Payments page shows one row per project with Project Price/First/Subsequent/Total Received/Total Receivable columns and +Payment button; concrete row TEST_l_8febdb verifies math ₹10L price - 3L first CONFIRMED - 2L ADDITIONAL CONFIRMED => 5L receivable (PENDING excluded). ISSUE 1: REGISTRATION scope enforced — passing ?stage=DISPATCH returns 0 DISPATCH ecps. ISSUE 5: full RBAC verified — non manager/owner get 403 on /assign-installation, non-assignee INSTALLATION gets 403 on /installation, installer list-scope filters to own responsible_user only. ISSUE 6: /users/team/INSTALLATION returns 200 for OWNER/MANAGER, 403 for LEAD/REGISTRATION/ACCOUNTS/DISPATCH/INSTALLATION. All approved fixes implemented correctly.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Manager Site Visits assign dropdown", "issues": ["Displays duplicate name 'Install Two' (two active INSTALLATION users share the same display name from prior test seeding). Not a bug — cosmetic — but consider showing username alongside name for disambiguation."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_audit_spec.py",
+    "/app/backend/tests/test_issues_1_to_6.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is 1166 lines — still a monolith. Split into routers (auth, leads, ecps, payments, dashboard, admin) for maintainability as Phase 2 grows.",
+    "get_lead has no explicit role restriction — any authenticated user can GET /api/leads/{id} by UUID. Low risk (UUIDs, not linked in UI for non-lead roles) but consider scoping.",
+    "Task completion on INSTALLATION/NET_METERING stages checks only role team, not responsible_user — any INSTALLATION user could complete tasks on an ECP not assigned to them (they cannot list it, but if they know the id via a leak, they could). Consider adding an assignee-only guard on task complete for INSTALLATION stages, mirroring the /installation endpoint check.",
+    "_advance_stage on final step keeps current_stage='ACCOUNTS_2' with status=COMPLETED — a bit confusing when reading records; consider explicit current_stage='COMPLETED'.",
+    "No pagination on list endpoints (.to_list(3000/5000)); fine for V1 but flag for Phase 2.",
+    "Payment monitor rows include full 'payments' list; potentially large payload — consider pagination or trimming."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_issues_1_to_6.py"
+  ],
+  "success_rate": {"backend": "100% (48/48)", "frontend": "100% for smoke flows (7/7 role/feature checks)"},
+  "test_credentials": "owner: anoopdube07@gmail.com/Owner@123; manager/Manager@123; lead/Lead@123; registration/Reg@123; accounts/Acct@123; dispatch/Disp@123; installation/Install@123",
+  "seed_data_creation": "Tests create fresh TEST_I_* / TEST_A_* / TEST_L_* leads and downstream ECPs per case. Extra INSTALLATION users (install_x_*/install_y_*/install2_*) are created via OWNER endpoint for assignee-scoping tests — these accumulate across runs (harmless, cosmetic dropdown duplication only).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Three backend test files now: /app/backend/tests/backend_test.py (baseline pipeline + closure/SLA/dashboard), test_audit_spec.py (spec-D + dispatch continuity + hardening), test_issues_1_to_6.py (approved fixes). All 48 idempotent per run. Behavior: dispatch completion routes to Manager (INSTALLATION + AWAITING_ASSIGNMENT + current_team=MANAGER); Manager must POST /ecps/{id}/assign-installation before installer can act (READY_TO_INSTALL). INSTALLATION user list scope is filtered by responsible_user==user.id. If future changes revert this handoff, update test_full_pipeline_no_financing and TestIssue5InstallHandoff.",
+  "rca of the issue": "No blocking issues. All 6 approved fixes work per spec; regression intact."
+}

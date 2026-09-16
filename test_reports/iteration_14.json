@@ -1,0 +1,32 @@
+{
+  "summary": "Backend regression for Dispatch Delivery Challan gate + requires chain + auto-advance to INSTALLATION. Wrote /app/backend/tests/test_dispatch_challan_gate.py (6 tests, all PASSED). Existing security-scope regression suites (test_ecp_detail_scope, test_ecp_lead_list_scope, test_lead_dashboard_scope, test_ecp_financing_scope) all green (32 passed, 1 skipped).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_dispatch_challan_gate.py",
+    "/app/test_reports/pytest/iter14_challan_gate.xml",
+    "/app/test_reports/pytest/iter14_regression.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Minor UX: complete_task returns get_ecp scoped to role; when the final DISPATCH task auto-advances the ECP to INSTALLATION, a DISPATCH user (whose scope excludes INSTALLATION) receives 404 on the response even though the write succeeded. Consider returning a stage-advanced acknowledgment/scope-lax response, or letting the client refresh via list endpoints. Not a correctness bug for the gate feature.",
+    "server.py is 2441 lines — consider splitting into routers (ecps, tasks, challan, complaints, etc.) for maintainability (>700 line rule)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_dispatch_challan_gate.py (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "not tested (backend-only per request)"},
+  "test_credentials": "Loaded from /app/memory/test_credentials.md — OWNER, LEAD, REGISTRATION, ACCOUNTS, DISPATCH.",
+  "seed_data_creation": "Tests create fresh leads (TEST_DCG_*) and drive them through PENDING_DOCUMENTS -> REGISTRATION_1 -> ACCOUNTS_1 -> DISPATCH via real endpoints, ensuring new requires chain is created by _tasks_from_specs. No direct DB writes; uses TEST_ prefix.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "New regression file /app/backend/tests/test_dispatch_challan_gate.py covers: (1) first-payment gate on Start Dispatch, (2) unchanged allow when first payment CONFIRMED, (3) blocked 'Delivery Challan' completion with no challan, (4) blocked with DRAFT challan, (5) end-to-end sequence with challan finalized -> MDC ordering -> Dispatch Completed -> auto-advance to INSTALLATION (install_status AWAITING_ASSIGNMENT), (6) RBAC: ACCOUNTS forbidden on save/finalize challan and complete DISPATCH task. Note: use OWNER role for the last dispatch task completion because complete_task's response is scoped via ecp_filter_for_role and DISPATCH loses visibility after auto-advance.",
+  "rca of the issue": "N/A — feature verified working. All requires links + finalized-challan guard + first-payment gate + auto-advance function as specified."
+}

@@ -1,0 +1,26 @@
+{
+  "summary": "Verified the Installation assignment pool bug fix end-to-end. Backend GET /api/users/team/INSTALLATION now returns both INSTALLATION and INSTALLATION_MEMBER active users (8 active INSTALLATION_MEMBER users returned; 0 active INSTALLATION-role users exist, 31 inactive INSTALLATION users correctly excluded). GET /api/users/team/REGISTRATION returns only 1 REGISTRATION user; /api/users/team/ACCOUNTS returns only 1 ACCOUNTS user — no cross-role leakage. Frontend: logged in as instmgr, opened INSTALLATION-stage AWAITING_ASSIGNMENT ECP (b2d60ebb-8e65-4e8f-b157-43c91a0ad8cd), clicked assign-install-button, dropdown listed all 8 INSTALLATION_MEMBER users including 'Manish Install-Member' (instmem). Selected instmem and submitted; ECP transitioned to READY_TO_INSTALL with responsible person 'Manish Install-Member'. Toast 'Installation assigned' shown. No console errors (only benign radix DialogContent aria-describedby warnings).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Assign Installation Employee dialog", "issues": ["Radix DialogContent missing aria-describedby / Description (accessibility warning, pre-existing, not part of this bugfix)"]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Fix is minimal and correct: role_q = {'$in': list(wf.INSTALL_MEMBER_ROLES)} if role == 'INSTALLATION' else role preserves exact-role behavior for other teams.",
+    "Note: 31 inactive INSTALLATION-role users exist in DB (legacy). The active filter correctly excludes them. Consider a data migration to convert active users' legacy INSTALLATION role to INSTALLATION_MEMBER if any exist in future.",
+    "Non-blocking a11y: All shadcn Dialogs on the site (assign, closure, etc.) miss DialogDescription — pre-existing."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "instmgr / InstMgr@123 (INSTALLATION_MANAGER); instmem / InstMem@123 (INSTALLATION_MEMBER); Owner: anoopdube07@gmail.com / Owner@123",
+  "seed_data_creation": "None — used existing ECP b2d60ebb-8e65-4e8f-b157-43c91a0ad8cd (INSTALLATION / AWAITING_ASSIGNMENT). Note: after this test that ECP is now assigned to Manish Install-Member (state changed).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Installation pool bug is fully resolved. The tested ECP b2d60ebb-... is now in READY_TO_INSTALL. If another AWAITING_ASSIGNMENT ECP is needed, use OWNER GET /api/ecps and filter by current_stage=='INSTALLATION' and install_status=='AWAITING_ASSIGNMENT' (field is current_stage, not stage).",
+  "rca of the issue": "Previous code used exact match {'role': 'INSTALLATION'} which returned 0 users because the seed/DB uses INSTALLATION_MEMBER for the worker pool (8 active). Fix expands the query using wf.INSTALL_MEMBER_ROLES = {INSTALLATION, INSTALLATION_MEMBER} only when role == 'INSTALLATION'. Verified via API (both roles included; other roles unaffected) and via UI (dropdown populated, assignment succeeded, stage advanced)."
+}

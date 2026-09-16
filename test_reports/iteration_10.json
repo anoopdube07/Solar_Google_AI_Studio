@@ -1,0 +1,23 @@
+{
+  "summary": "Verified IDOR security fix on GET /api/ecps/{ecp_id}. All 13 backend tests passed. Detail endpoint now enforces the same ecp_filter_for_role(user) scope as the list endpoint. Verified: (1) OWNER/MANAGER/LEAD/ACCOUNTS list/detail parity; (2) DISPATCH gets 404 for non-DISPATCH stages and 200 with scrubbed project_price + empty payments for DISPATCH stage ECPs; (3) REGISTRATION restricted to REGISTRATION_1/REGISTRATION_2/NET_METERING stages; (4) INSTALLATION_MEMBER restricted to INSTALLATION/NET_METERING AND responsible_user == self; (5) COMPLAINT gets 404 for any ECP id (empty list also); (6) Non-existent ECP id returns 404 for authorized user.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_ecp_detail_scope.py",
+    "/app/test_reports/pytest/iter10_scope.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Fix in get_ecp() correctly reuses ecp_filter_for_role() ensuring list/detail scope parity — no drift risk.",
+    "The __none__ sentinel is handled explicitly with an early 404 to avoid an unnecessary DB query; good defensive check.",
+    "DISPATCH scrubbing (_scrub_dispatch + payments=[]) is preserved after the scope check — correct order."
+  ],
+  "updated_files": ["/app/backend/tests/test_ecp_detail_scope.py"],
+  "success_rate": {"backend": "100%", "frontend": "not tested (backend-only request)"},
+  "test_credentials": "Used /app/memory/test_credentials.md",
+  "seed_data_creation": "None; used existing OWNER-visible ECPs to discover ids across stages and roles.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "test_ecp_detail_scope.py covers list/detail scope parity for all roles including OWNER/MANAGER/LEAD/ACCOUNTS/REGISTRATION/DISPATCH/INSTALLATION_MANAGER/INSTALLATION_MEMBER, COMPLAINT 404 blocking, DISPATCH stage-only, REGISTRATION allowed stages, INSTALLATION_MEMBER assignment gating, and non-existent id 404. Reuse for regression.",
+  "rca of the issue": "Previous get_ecp() queried by id only, ignoring role scope, allowing users to fetch ECPs outside their permitted stage/assignment via direct id (classic IDOR). Fix injects ecp_filter_for_role(user) into the find_one query and pre-empts the blocked-role case with an explicit 404, matching list_ecps semantics."
+}
